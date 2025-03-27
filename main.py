@@ -45,29 +45,62 @@ def is_admin(user_id):
     return result is not None
 
 
-def generate_certificates(username):
-    """Генерирует сертификаты для пользователя через easyrsa"""
+def generate_certificates(username, ca_password):
+    """Генерирует сертификаты с автоматическим вводом всех данных"""
     try:
-        # Генерация запроса на сертификат
-        subprocess.run(
+        # 1. Генерация запроса на сертификат
+        gen_req = subprocess.Popen(
             [os.path.join(EASYRSA_PATH, "easyrsa"), "gen-req", username, "nopass"],
             cwd=EASYRSA_PATH,
-            check=True,
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.PIPE,
+            text=True
         )
 
-        # Подпись сертификата
-        subprocess.run(
+        # Автоматический ввод данных для Distinguished Name
+        inputs = [
+            '\n',  # Country Name (2 letter code) [US]:
+            '\n',  # State or Province Name (full name) [California]:
+            '\n',  # Locality Name (eg, city) [San Francisco]:
+            '\n',  # Organization Name (eg, company) [Internet Widgits Pty Ltd]:
+            '\n',  # Organizational Unit Name (eg, section) []:
+            '\n',  # Common Name (eg: your user, host, or server name) [username]:
+            '\n',  # Email Address []:
+            '\n',  # A challenge password []:
+            '\n'  # An optional company name []:
+        ]
+        output, error = gen_req.communicate(input=''.join(inputs))
+
+        if gen_req.returncode != 0:
+            print(f"Ошибка gen-req: {error}")
+            return False
+
+        # 2. Подпись сертификата
+        sign_req = subprocess.Popen(
             [os.path.join(EASYRSA_PATH, "easyrsa"), "sign-req", "client", username],
             cwd=EASYRSA_PATH,
-            check=True,
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.PIPE,
+            text=True
         )
+
+        # Автоматический ввод 'yes' и пароля CA
+        inputs = [
+            'yes\n',  # Подтверждение подписи
+            f"{ca_password}\n"  # Пароль CA
+        ]
+        output, error = sign_req.communicate(input=''.join(inputs))
+
+        if sign_req.returncode != 0:
+            print(f"Ошибка sign-req: {error}")
+            return False
+
         return True
-    except subprocess.CalledProcessError as e:
-        print(f"Ошибка генерации сертификатов: {e.stderr.decode()}")
+
+    except Exception as e:
+        print(f"Ошибка генерации сертификатов: {str(e)}")
         return False
 
 
