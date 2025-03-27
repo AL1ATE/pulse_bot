@@ -18,7 +18,7 @@ CA_PATH = os.path.join(EASYRSA_PATH, "pki")
 ISSUED_CERTS_PATH = os.path.join(CA_PATH, "issued")
 PRIVATE_KEYS_PATH = os.path.join(CA_PATH, "private")
 CONFIGS_DIR = "configs"
-SERVER_IP = "YOUR_SERVER_IP"  # Замените на реальный IP сервера
+SERVER_IP = "176.124.208.223"
 
 # Создаем директорию для конфигов, если ее нет
 os.makedirs(CONFIGS_DIR, exist_ok=True)
@@ -46,7 +46,7 @@ def is_admin(user_id):
 
 
 def generate_certificates(username, ca_password):
-    """Генерирует сертификаты с автоматическим вводом всех данных"""
+    """Генерирует сертификаты с автоматическим вводом пароля CA"""
     try:
         # 1. Генерация запроса на сертификат
         gen_req = subprocess.Popen(
@@ -58,19 +58,8 @@ def generate_certificates(username, ca_password):
             text=True
         )
 
-        # Автоматический ввод данных для Distinguished Name
-        inputs = [
-            '\n',  # Country Name (2 letter code) [US]:
-            '\n',  # State or Province Name (full name) [California]:
-            '\n',  # Locality Name (eg, city) [San Francisco]:
-            '\n',  # Organization Name (eg, company) [Internet Widgits Pty Ltd]:
-            '\n',  # Organizational Unit Name (eg, section) []:
-            '\n',  # Common Name (eg: your user, host, or server name) [username]:
-            '\n',  # Email Address []:
-            '\n',  # A challenge password []:
-            '\n'  # An optional company name []:
-        ]
-        output, error = gen_req.communicate(input=''.join(inputs))
+        # Автоматический ввод пустых значений для всех полей
+        output, error = gen_req.communicate(input='\n' * 10)
 
         if gen_req.returncode != 0:
             print(f"Ошибка gen-req: {error}")
@@ -86,10 +75,13 @@ def generate_certificates(username, ca_password):
             text=True
         )
 
-        # Автоматический ввод 'yes' и пароля CA
+        # Последовательность ввода:
+        # 1. Подтверждение 'yes'
+        # 2. Пароль CA
         inputs = [
             'yes\n',  # Подтверждение подписи
-            f"{ca_password}\n"  # Пароль CA
+            f"{ca_password}\n",  # Пароль CA key
+            '\n'  # Дополнительный перевод строки на всякий случай
         ]
         output, error = sign_req.communicate(input=''.join(inputs))
 
@@ -105,15 +97,19 @@ def generate_certificates(username, ca_password):
 
 
 def create_ovpn_config(username):
-    """Создает конфигурационный файл OpenVPN"""
+    """Создает .ovpn файл с правильным форматированием"""
     try:
-        # Чтение сертификатов и ключей
+        # Чтение CA сертификата
         with open(os.path.join(CA_PATH, "ca.crt"), "r") as f:
-            ca_cert = f.read().strip()
+            ca_content = f.read()
+            ca_cert = extract_pem_content(ca_content, "CERTIFICATE")
 
+        # Чтение пользовательского сертификата
         with open(os.path.join(ISSUED_CERTS_PATH, f"{username}.crt"), "r") as f:
-            user_cert = f.read().strip()
+            user_cert_content = f.read()
+            user_cert = extract_pem_content(user_cert_content, "CERTIFICATE")
 
+        # Чтение приватного ключа
         with open(os.path.join(PRIVATE_KEYS_PATH, f"{username}.key"), "r") as f:
             user_key = f.read().strip()
 
@@ -121,15 +117,12 @@ def create_ovpn_config(username):
         config_content = f"""client
 dev tun
 proto udp
-remote {SERVER_IP} 1194
+remote 176.124.208.223 1194
 resolv-retry infinite
 nobind
 persist-key
 persist-tun
-remote-cert-tls server
-auth SHA256
-cipher AES-256-CBC
-compress lz4
+comp-lzo
 verb 3
 
 <ca>
@@ -151,6 +144,21 @@ verb 3
     except Exception as e:
         print(f"Ошибка создания конфига: {str(e)}")
         return None
+
+
+def extract_pem_content(content, pem_type):
+    """Извлекает только PEM-блоки из содержимого файла"""
+    start_marker = f"-----BEGIN {pem_type}-----"
+    end_marker = f"-----END {pem_type}-----"
+
+    start = content.find(start_marker)
+    end = content.find(end_marker)
+
+    if start == -1 or end == -1:
+        raise ValueError(f"Не найден PEM-блок для {pem_type}")
+
+    # Включаем маркеры в результат
+    return content[start:end + len(end_marker)]
 
 
 @bot.message_handler(commands=['start'])
@@ -213,7 +221,7 @@ def add_user_final(message, username):
 
     # Генерация сертификатов
     bot.send_message(message.chat.id, "⏳ Генерирую сертификаты...")
-    if not generate_certificates(username):
+    if not generate_certificates(username, os.getenv("CA_PASSWORD")):
         bot.send_message(message.chat.id, "❌ Ошибка при генерации сертификатов!")
         return
 
@@ -255,6 +263,9 @@ def add_user_final(message, username):
 
     # Удаление временного файла
     os.remove(config_path)
+
+    # Возврат на старт
+    start(message)
 
 
 if __name__ == "__main__":
