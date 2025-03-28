@@ -1,40 +1,65 @@
 import os
 import shutil
+import psycopg2
 from datetime import datetime
-from db import get_db_connection
+from dotenv import load_dotenv
 
-# Пути к директориям
-CERTS_DIR = "/etc/openvpn/easy-rsa/pki/issued/"
-KEYS_DIR = "/etc/openvpn/easy-rsa/pki/private/"
-REVOKED_DIR = "/etc/openvpn/revoked/"
+# Загружаем переменные окружения
+load_dotenv()
 
-# Убедимся, что папка для заблокированных сертификатов существует
-os.makedirs(REVOKED_DIR, exist_ok=True)
+# Пути к папкам
+ISSUED_CERTS_PATH = "/root/openvpn-ca/pki/issued"
+PRIVATE_KEYS_PATH = "/root/openvpn-ca/pki/private"
+REVOKED_ISSUED_PATH = "/root/openvpn-ca/pki/revoked_issued"
+REVOKED_PRIVATE_PATH = "/root/openvpn-ca/pki/revoked_private"
 
+# Подключение к базе данных
+DB_PARAMS = {
+    "dbname": os.getenv("DB_NAME"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "host": os.getenv("DB_HOST"),
+    "port": os.getenv("DB_PORT"),
+}
 
-def check_and_revoke_users():
-    conn = get_db_connection()
+def move_file(src, dst):
+    """Перемещает файл, если он существует"""
+    if os.path.exists(src):
+        shutil.move(src, dst)
+
+def check_expired_users():
+    """Проверяет подписки и блокирует/разблокирует доступ"""
+    conn = psycopg2.connect(**DB_PARAMS)
     cursor = conn.cursor()
 
-    # Выбираем пользователей с истекшей подпиской
-    cursor.execute("SELECT username FROM vpn_users WHERE expiration_date IS NOT NULL AND expiration_date < NOW()")
-    expired_users = cursor.fetchall()
+    # Получаем список пользователей с истекшим сроком
+    cursor.execute("SELECT username, expiration_date FROM vpn_users")
+    users = cursor.fetchall()
 
-    for (username,) in expired_users:
-        cert_path = os.path.join(CERTS_DIR, f"{username}.crt")
-        key_path = os.path.join(KEYS_DIR, f"{username}.key")
-        revoked_cert_path = os.path.join(REVOKED_DIR, f"{username}.crt")
-        revoked_key_path = os.path.join(REVOKED_DIR, f"{username}.key")
+    for username, expiration_date in users:
+        cert_file = f"{username}.crt"
+        key_file = f"{username}.key"
 
-        # Перемещаем файлы, если они существуют
-        if os.path.exists(cert_path) and os.path.exists(key_path):
-            shutil.move(cert_path, revoked_cert_path)
-            shutil.move(key_path, revoked_key_path)
-            print(f"Доступ для {username} заблокирован")
+        cert_path = os.path.join(ISSUED_CERTS_PATH, cert_file)
+        key_path = os.path.join(PRIVATE_KEYS_PATH, key_file)
+
+        revoked_cert_path = os.path.join(REVOKED_ISSUED_PATH, cert_file)
+        revoked_key_path = os.path.join(REVOKED_PRIVATE_PATH, key_file)
+
+        # Проверяем, истек ли срок
+        if expiration_date and expiration_date < datetime.now():
+            print(f"⛔ Блокируем {username} (подписка истекла)")
+            move_file(cert_path, revoked_cert_path)
+            move_file(key_path, revoked_key_path)
+        else:
+            # Если срок не истек и файлы находятся в `revoked`, возвращаем их
+            if os.path.exists(revoked_cert_path) and os.path.exists(revoked_key_path):
+                print(f"✅ Разблокируем {username} (подписка продлена)")
+                move_file(revoked_cert_path, cert_path)
+                move_file(revoked_key_path, key_path)
 
     cursor.close()
     conn.close()
 
-
 if __name__ == "__main__":
-    check_and_revoke_users()
+    check_expired_users()
