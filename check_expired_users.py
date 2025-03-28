@@ -3,6 +3,7 @@ import shutil
 import psycopg2
 from datetime import datetime
 from dotenv import load_dotenv
+from datetime import datetime, timezone
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -46,8 +47,8 @@ def check_expired_users():
         revoked_cert_path = os.path.join(REVOKED_ISSUED_PATH, cert_file)
         revoked_key_path = os.path.join(REVOKED_PRIVATE_PATH, key_file)
 
-        # Проверяем, истек ли срок
-        if expiration_date and expiration_date < datetime.now():
+        # Проверяем, истек ли срок (приводим текущую дату к UTC)
+        if expiration_date and expiration_date < datetime.now(timezone.utc):
             print(f"⛔ Блокируем {username} (подписка истекла)")
             move_file(cert_path, revoked_cert_path)
             move_file(key_path, revoked_key_path)
