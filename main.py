@@ -37,7 +37,7 @@ def handle_add_user(message):
     if not is_admin(message.from_user.id):
         bot.send_message(message.chat.id, "🚫 У вас нет доступа!")
         return
-    add_user_start(bot, message, on_success=start)
+    add_user_start(bot, message)
 
 
 if __name__ == "__main__":

@@ -104,7 +104,7 @@ def add_user_start(bot, message):
     bot.register_next_step_handler(msg, lambda m: add_user_expiration(bot, m))
 
 
-def add_user_expiration(bot, message, on_success=None):
+def add_user_expiration(bot, message):
     """Обработка имени пользователя и запрос срока действия"""
     username = message.text.strip()
     if not username:
@@ -125,10 +125,10 @@ def add_user_expiration(bot, message, on_success=None):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton("30 дней"), types.KeyboardButton("Навсегда"))
     bot.send_message(message.chat.id, "Выберите срок действия:", reply_markup=markup)
-    bot.register_next_step_handler(message, lambda m: add_user_final(bot, m, username, on_success))
+    bot.register_next_step_handler(message, lambda m: add_user_final(bot, m, username))
 
 
-def add_user_final(bot, message, username, on_success_callback=None):
+def add_user_final(bot, message, username):
     """Финальное добавление пользователя в систему"""
     if message.text not in ["30 дней", "Навсегда"]:
         bot.send_message(message.chat.id, "❌ Неверный выбор срока!")
@@ -169,7 +169,3 @@ def add_user_final(bot, message, username, on_success_callback=None):
             caption=f"✅ Пользователь {username} успешно создан!\nСрок действия: {message.text}"
         )
     os.remove(config_path)
-
-    # Вызываем callback если он предоставлен
-    if on_success_callback:
-        on_success_callback(bot, message)
