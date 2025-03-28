@@ -37,17 +37,35 @@ def generate_certificates(username, ca_password):
         return False
 
 
+def extract_cert_content(cert_path):
+    """Извлекает только часть сертификата без метаданных"""
+    with open(cert_path, "r") as f:
+        cert_data = f.read()
+
+    # Извлекаем только часть сертификата, начиная с BEGIN CERTIFICATE и заканчивая END CERTIFICATE
+    cert_start = cert_data.find("-----BEGIN CERTIFICATE-----")
+    cert_end = cert_data.find("-----END CERTIFICATE-----") + len("-----END CERTIFICATE-----")
+
+    if cert_start != -1 and cert_end != -1:
+        return cert_data[cert_start:cert_end]
+
+    return None
+
+
 def create_ovpn_config(username):
     """Создает конфигурационный файл .ovpn"""
     try:
         with open(os.path.join(CA_PATH, "ca.crt"), "r") as f:
             ca_cert = f.read()
 
-        with open(os.path.join(ISSUED_CERTS_PATH, f"{username}.crt"), "r") as f:
-            user_cert = f.read()
+        # Извлекаем только нужную часть сертификата
+        user_cert = extract_cert_content(os.path.join(ISSUED_CERTS_PATH, f"{username}.crt"))
 
         with open(os.path.join(PRIVATE_KEYS_PATH, f"{username}.key"), "r") as f:
             user_key = f.read()
+
+        if not user_cert:
+            raise Exception("Не удалось извлечь сертификат пользователя.")
 
         config_content = f"""client
 dev tun
