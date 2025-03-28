@@ -168,4 +168,12 @@ def add_user_final(bot, message, username):
             f,
             caption=f"✅ Пользователь {username} успешно создан!\nСрок действия: {message.text}"
         )
+
     os.remove(config_path)
+
+    # Отправить сообщение с кнопками "Добавить пользователя" и "Список пользователей" после создания пользователя
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(types.KeyboardButton("Добавить пользователя"),
+               types.KeyboardButton("Список пользователей"))
+    bot.send_message(message.chat.id, "👋 Добро пожаловать в админ-панель VPN!", reply_markup=markup)
+
