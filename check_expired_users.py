@@ -30,10 +30,13 @@ def revoke_certificate(username):
 
     try:
         print(f"⛔ Отзываем сертификат {username}...")
+
+        # Используем yes для автоматического ответа 'yes' на запрос
         subprocess.run(
-            [os.path.join(EASYRSA_PATH, "easyrsa"), "revoke", username],
+            ["yes", "yes", "|", os.path.join(EASYRSA_PATH, "easyrsa"), "revoke", username],
             cwd=EASYRSA_PATH,
-            check=True
+            check=True,
+            shell=True  # Включаем shell=True для правильной работы с pipe
         )
 
         # Обновляем список отозванных сертификатов (CRL)
