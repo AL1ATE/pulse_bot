@@ -4,6 +4,7 @@ import subprocess
 from telebot import types
 from db import get_db_connection
 from config import *
+from main import start
 
 
 def generate_certificates(username, ca_password):
@@ -169,3 +170,6 @@ def add_user_final(bot, message, username):
             caption=f"✅ Пользователь {username} успешно создан!\nСрок действия: {message.text}"
         )
     os.remove(config_path)
+
+    # Добавляем переадресацию на начальный экран
+    start(message)
