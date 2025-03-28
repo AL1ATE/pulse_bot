@@ -9,6 +9,8 @@ ISSUED_CERTS_PATH = "/root/openvpn-ca/pki/issued"
 PRIVATE_KEYS_PATH = "/root/openvpn-ca/pki/private"
 REVOKED_CERTS_PATH = "/root/openvpn-ca/pki/revoked_issued"
 REVOKED_KEYS_PATH = "/root/openvpn-ca/pki/revoked_private"
+CRL_PATH = "/root/openvpn-ca/pki/crl.pem"
+OPENVPN_CRL_DEST = "/etc/openvpn/crl.pem"
 
 
 def revoke_certificate(username):
@@ -24,8 +26,15 @@ def revoke_certificate(username):
         # Обновляем список отозванных сертификатов (CRL)
         print("🔄 Обновляем CRL...")
         subprocess.run(
-            "cd /root/openvpn-ca && ./easyrsa gen-crl",  # Команда для обновления CRL
-            shell=True,
+            [os.path.join(EASYRSA_PATH, "easyrsa"), "gen-crl"],
+            cwd=EASYRSA_PATH,
+            check=True
+        )
+
+        # Копируем новый CRL в директорию OpenVPN
+        print(f"📂 Копируем новый CRL в {OPENVPN_CRL_DEST}...")
+        subprocess.run(
+            ["cp", CRL_PATH, OPENVPN_CRL_DEST],
             check=True
         )
 
