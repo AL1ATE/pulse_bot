@@ -31,13 +31,15 @@ def revoke_certificate(username):
     try:
         print(f"⛔ Отзываем сертификат {username}...")
 
-        # Используем yes для автоматического ответа 'yes' на запрос
-        subprocess.run(
-            ["yes", "yes", "|", os.path.join(EASYRSA_PATH, "easyrsa"), "revoke", username],
+        # Прямо передаем "yes" в команду для автоматического подтверждения
+        process = subprocess.Popen(
+            [os.path.join(EASYRSA_PATH, "easyrsa"), "revoke", username],
             cwd=EASYRSA_PATH,
-            check=True,
-            shell=True  # Включаем shell=True для правильной работы с pipe
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
         )
+        process.communicate(input=b"yes\n")  # Отправляем "yes" для подтверждения
 
         # Обновляем список отозванных сертификатов (CRL)
         print("🔄 Обновляем CRL...")
