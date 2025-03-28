@@ -14,7 +14,7 @@ OPENVPN_CRL_DEST = "/etc/openvpn/crl.pem"
 
 
 def revoke_certificate(username):
-    """Отзывает сертификат пользователя и обновляет CRL."""
+    """Отзывает сертификат пользователя, обновляет CRL и статус в БД."""
     try:
         print(f"⛔ Отзываем сертификат {username}...")
         subprocess.run(
@@ -56,6 +56,19 @@ def revoke_certificate(username):
         subprocess.run(["systemctl", "restart", "openvpn"], check=True)
 
         print("✅ OpenVPN перезапущен")
+
+        # Обновляем статус пользователя в базе данных
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE vpn_users SET status = %s WHERE username = %s",
+            ("inactive", username)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        print(f"✅ Статус пользователя {username} обновлён на inactive")
 
     except subprocess.CalledProcessError as e:
         print(f"❌ Ошибка при отзыве сертификата {username}: {e}")
