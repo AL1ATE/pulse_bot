@@ -42,6 +42,12 @@ def revoke_certificate(username):
 
         print(f"✅ Сертификат {username} отозван и перемещён в {REVOKED_CERTS_PATH}")
 
+        # Перезапускаем OpenVPN, чтобы применить обновление CRL
+        print("🔄 Перезапускаем OpenVPN...")
+        subprocess.run(["systemctl", "restart", "openvpn"], check=True)
+
+        print("✅ OpenVPN перезапущен")
+
     except subprocess.CalledProcessError as e:
         print(f"❌ Ошибка при отзыве сертификата {username}: {e}")
 
