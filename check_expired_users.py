@@ -14,7 +14,20 @@ OPENVPN_CRL_DEST = "/etc/openvpn/crl.pem"
 
 
 def revoke_certificate(username):
-    """Отзывает сертификат пользователя, обновляет CRL и статус в БД."""
+    """Отзывает сертификат пользователя, обновляет CRL и статус в БД, если он еще не отозван."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Проверяем статус пользователя в базе данных
+    cursor.execute("SELECT status FROM vpn_users WHERE username = %s", (username,))
+    user_status = cursor.fetchone()
+
+    if user_status and user_status[0] == 'inactive':
+        print(f"⚠️ Сертификат {username} уже отозван (статус: inactive). Пропускаем.")
+        cursor.close()
+        conn.close()
+        return
+
     try:
         print(f"⛔ Отзываем сертификат {username}...")
         subprocess.run(
@@ -57,21 +70,21 @@ def revoke_certificate(username):
 
         print("✅ OpenVPN перезапущен")
 
-        # Обновляем статус пользователя в базе данных
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        # Обновляем статус пользователя в базе данных на 'inactive'
         cursor.execute(
             "UPDATE vpn_users SET status = %s WHERE username = %s",
             ("inactive", username)
         )
         conn.commit()
-        cursor.close()
-        conn.close()
 
         print(f"✅ Статус пользователя {username} обновлён на inactive")
 
     except subprocess.CalledProcessError as e:
         print(f"❌ Ошибка при отзыве сертификата {username}: {e}")
+
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def check_expired_users():
