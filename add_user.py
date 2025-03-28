@@ -4,7 +4,6 @@ import subprocess
 from telebot import types
 from db import get_db_connection
 from config import *
-from main import start
 
 
 def generate_certificates(username, ca_password):
@@ -105,7 +104,7 @@ def add_user_start(bot, message):
     bot.register_next_step_handler(msg, lambda m: add_user_expiration(bot, m))
 
 
-def add_user_expiration(bot, message):
+def add_user_expiration(bot, message, on_success=None):
     """Обработка имени пользователя и запрос срока действия"""
     username = message.text.strip()
     if not username:
@@ -126,10 +125,10 @@ def add_user_expiration(bot, message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton("30 дней"), types.KeyboardButton("Навсегда"))
     bot.send_message(message.chat.id, "Выберите срок действия:", reply_markup=markup)
-    bot.register_next_step_handler(message, lambda m: add_user_final(bot, m, username))
+    bot.register_next_step_handler(message, lambda m: add_user_final(bot, m, username, on_success))
 
 
-def add_user_final(bot, message, username):
+def add_user_final(bot, message, username, on_success_callback=None):
     """Финальное добавление пользователя в систему"""
     if message.text not in ["30 дней", "Навсегда"]:
         bot.send_message(message.chat.id, "❌ Неверный выбор срока!")
@@ -171,5 +170,6 @@ def add_user_final(bot, message, username):
         )
     os.remove(config_path)
 
-    # Добавляем переадресацию на начальный экран
-    start(message)
+    # Вызываем callback если он предоставлен
+    if on_success_callback:
+        on_success_callback(bot, message)
