@@ -24,8 +24,8 @@ def revoke_certificate(username):
         # Обновляем список отозванных сертификатов (CRL)
         print("🔄 Обновляем CRL...")
         subprocess.run(
-            [os.path.join(EASYRSA_PATH, "easyrsa"), "gen-crl"],
-            cwd=EASYRSA_PATH,
+            "cd /root/openvpn-ca && ./easyrsa gen-crl",  # Команда для обновления CRL
+            shell=True,
             check=True
         )
 
