@@ -5,6 +5,7 @@ from telebot import types
 from db import get_db_connection
 from config import *
 
+
 def generate_certificates(username, ca_password):
     """Генерирует сертификаты для пользователя"""
     try:
@@ -35,6 +36,7 @@ def generate_certificates(username, ca_password):
         print(f"Ошибка генерации сертификатов: {e}")
         return False
 
+
 def extract_cert_content(cert_path):
     """Извлекает только часть сертификата без метаданных"""
     with open(cert_path, "r") as f:
@@ -48,6 +50,7 @@ def extract_cert_content(cert_path):
         return cert_data[cert_start:cert_end]
 
     return None
+
 
 def create_ovpn_config(username):
     """Создает конфигурационный файл .ovpn"""
@@ -75,16 +78,6 @@ persist-tun
 comp-lzo
 verb 3
 
-# Используем сильные алгоритмы шифрования
-cipher AES-256-GCM
-auth SHA256
-
-# Использование ECDHE для безопасного обмена ключами
-ecdh-curve secp521r1
-
-# Защита от атак Man-in-the-Middle с использованием tls-auth
-tls-auth ta.key 1
-
 <ca>
 {ca_cert}
 </ca>
@@ -104,10 +97,12 @@ tls-auth ta.key 1
         print(f"Ошибка создания конфига: {e}")
         return None
 
+
 def add_user_start(bot, message):
     """Начало процесса добавления пользователя"""
     msg = bot.send_message(message.chat.id, "Введите имя пользователя для VPN:")
     bot.register_next_step_handler(msg, lambda m: add_user_expiration(bot, m))
+
 
 def add_user_expiration(bot, message):
     """Обработка имени пользователя и запрос срока действия"""
@@ -131,6 +126,7 @@ def add_user_expiration(bot, message):
     markup.add(types.KeyboardButton("30 дней"), types.KeyboardButton("Навсегда"))
     bot.send_message(message.chat.id, "Выберите срок действия:", reply_markup=markup)
     bot.register_next_step_handler(message, lambda m: add_user_final(bot, m, username))
+
 
 def add_user_final(bot, message, username):
     """Финальное добавление пользователя в систему"""
@@ -181,3 +177,4 @@ def add_user_final(bot, message, username):
                types.KeyboardButton("Список пользователей"),
                types.KeyboardButton("Продлить VPN"))
     bot.send_message(message.chat.id, "👋 Добро пожаловать в админ-панель VPN!", reply_markup=markup)
+
