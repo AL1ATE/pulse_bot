@@ -12,7 +12,6 @@ REVOKED_KEYS_PATH = "/root/openvpn-ca/pki/revoked_private"
 CRL_PATH = "/root/openvpn-ca/pki/crl.pem"
 OPENVPN_CRL_DEST = "/etc/openvpn/crl.pem"
 
-
 def revoke_certificate(username):
     """Отзывает сертификат пользователя, обновляет CRL и статус в БД, если он еще не отозван."""
     conn = get_db_connection()
@@ -62,10 +61,20 @@ def revoke_certificate(username):
         revoked_cert_path = os.path.join(REVOKED_CERTS_PATH, f"{username}.crt")
         revoked_key_path = os.path.join(REVOKED_KEYS_PATH, f"{username}.key")
 
+        os.makedirs(REVOKED_CERTS_PATH, exist_ok=True)
+        os.makedirs(REVOKED_KEYS_PATH, exist_ok=True)
+
         if os.path.exists(cert_path):
             os.rename(cert_path, revoked_cert_path)
+            print(f"✅ Сертификат перемещён: {cert_path} -> {revoked_cert_path}")
+        else:
+            print(f"⚠️ Сертификат {cert_path} не найден")
+
         if os.path.exists(key_path):
             os.rename(key_path, revoked_key_path)
+            print(f"✅ Ключ перемещён: {key_path} -> {revoked_key_path}")
+        else:
+            print(f"⚠️ Ключ {key_path} не найден")
 
         print(f"✅ Сертификат {username} отозван и перемещён в {REVOKED_CERTS_PATH}")
 
@@ -91,7 +100,6 @@ def revoke_certificate(username):
         cursor.close()
         conn.close()
 
-
 def check_expired_users():
     """Проверяет срок действия пользователей и отзывает просроченные сертификаты."""
     conn = get_db_connection()
@@ -107,7 +115,6 @@ def check_expired_users():
 
     cursor.close()
     conn.close()
-
 
 if __name__ == "__main__":
     check_expired_users()
