@@ -13,6 +13,26 @@ CRL_PATH = "/root/openvpn-ca/pki/crl.pem"
 OPENVPN_CRL_DEST = "/etc/openvpn/crl.pem"
 
 
+def fix_index_txt():
+    """Проверяет и корректирует файл index.txt, чтобы исправить статус сертификатов с неверной датой отзыва."""
+    index_txt_path = os.path.join(EASYRSA_PATH, "pki", "index.txt")
+
+    with open(index_txt_path, "r") as f:
+        lines = f.readlines()
+
+    fixed_lines = []
+    for line in lines:
+        # Проверяем, есть ли дата отзыва, но статус не изменён на R
+        if "/CN=" in line and "R" not in line:
+            # Прописываем новый статус если нужно
+            if "not revoked yet, but has a revocation date" in line:
+                line = line.replace("not revoked yet, but has a revocation date", "R")
+        fixed_lines.append(line)
+
+    with open(index_txt_path, "w") as f:
+        f.writelines(fixed_lines)
+
+
 def process_extend_username(message, bot):
     """Проверяем, существует ли пользователь"""
     username = message.text.strip()
@@ -50,19 +70,7 @@ def process_extend_username(message, bot):
         os.rename(revoked_key_path, active_key_path)
 
     # Обновляем статус в index.txt
-    index_txt_path = os.path.join(EASYRSA_PATH, "pki", "index.txt")
-    with open(index_txt_path, "r") as f:
-        lines = f.readlines()
-
-    # Ищем строку для нашего сертификата
-    for i, line in enumerate(lines):
-        if f"/CN={username}" in line and line.startswith("R"):
-            lines[i] = line.replace("R", "V")  # Меняем R на V для восстановления сертификата
-            break
-
-    # Сохраняем изменения в index.txt
-    with open(index_txt_path, "w") as f:
-        f.writelines(lines)
+    fix_index_txt()
 
     bot.send_message(message.chat.id, "🔄 Обновляем CRL и перезапускаем OpenVPN...")
 
