@@ -64,9 +64,6 @@ def create_ovpn_config(username):
         with open(os.path.join(PRIVATE_KEYS_PATH, f"{username}.key"), "r") as f:
             user_key = f.read()
 
-        with open("/etc/openvpn/ta.key", "r") as f:
-            tls_auth_key = f.read()
-
         if not user_cert:
             raise Exception("Не удалось извлечь сертификат пользователя.")
 
@@ -78,12 +75,8 @@ resolv-retry infinite
 nobind
 persist-key
 persist-tun
-remote-cert-tls server
-cipher AES-256-CBC
-auth SHA256
-key-direction 1
+comp-lzo
 verb 3
-compress lz4
 
 <ca>
 {ca_cert}
@@ -94,9 +87,6 @@ compress lz4
 <key>
 {user_key}
 </key>
-<tls-auth>
-{tls_auth_key}
-</tls-auth>
 """
         config_path = os.path.join(CONFIGS_DIR, f"{username}.ovpn")
         with open(config_path, "w") as f:
