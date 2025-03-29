@@ -49,6 +49,21 @@ def process_extend_username(message, bot):
     if os.path.exists(revoked_key_path):
         os.rename(revoked_key_path, active_key_path)
 
+    # Обновляем статус в index.txt
+    index_txt_path = os.path.join(EASYRSA_PATH, "pki", "index.txt")
+    with open(index_txt_path, "r") as f:
+        lines = f.readlines()
+
+    # Ищем строку для нашего сертификата
+    for i, line in enumerate(lines):
+        if f"/CN={username}" in line and line.startswith("R"):
+            lines[i] = line.replace("R", "V")  # Меняем R на V для восстановления сертификата
+            break
+
+    # Сохраняем изменения в index.txt
+    with open(index_txt_path, "w") as f:
+        f.writelines(lines)
+
     bot.send_message(message.chat.id, "🔄 Обновляем CRL и перезапускаем OpenVPN...")
 
     # Пересоздаём CRL и перезапускаем OpenVPN
