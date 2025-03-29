@@ -34,7 +34,7 @@ def fix_index_txt():
 
 
 def process_extend_username(message, bot):
-    """Проверяем, существует ли пользователь"""
+    """Проверяем, существует ли пользователь и продлеваем подписку"""
     username = message.text.strip()
 
     conn = get_db_connection()
@@ -69,8 +69,19 @@ def process_extend_username(message, bot):
     if os.path.exists(revoked_key_path):
         os.rename(revoked_key_path, active_key_path)
 
-    # Обновляем статус в index.txt
-    fix_index_txt()
+    # Обновляем статус в index.txt (удаляем отметку об отзыве)
+    index_path = os.path.join(EASYRSA_PATH, "pki", "index.txt")
+    with open(index_path, "r") as f:
+        lines = f.readlines()
+
+    with open(index_path, "w") as f:
+        for line in lines:
+            if username in line and line.startswith("R"):
+                # Меняем статус с R (revoked) на V (valid)
+                new_line = "V" + line[1:]
+                f.write(new_line)
+            else:
+                f.write(line)
 
     bot.send_message(message.chat.id, "🔄 Обновляем CRL и перезапускаем OpenVPN...")
 
