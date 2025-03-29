@@ -53,16 +53,20 @@ def extract_cert_content(cert_path):
 
 
 def create_ovpn_config(username):
-    """Создает конфигурационный файл .ovpn"""
+    """Создает конфигурационный файл .ovpn с tls-crypt"""
     try:
+        # Чтение стандартных сертификатов
         with open(os.path.join(CA_PATH, "ca.crt"), "r") as f:
             ca_cert = f.read()
 
-        # Извлекаем только нужную часть сертификата
         user_cert = extract_cert_content(os.path.join(ISSUED_CERTS_PATH, f"{username}.crt"))
 
         with open(os.path.join(PRIVATE_KEYS_PATH, f"{username}.key"), "r") as f:
             user_key = f.read()
+
+        # Чтение tls-crypt ключа
+        with open("/etc/openvpn/tls-crypt.key", "r") as f:
+            tls_crypt_key = f.read()
 
         if not user_cert:
             raise Exception("Не удалось извлечь сертификат пользователя.")
@@ -75,9 +79,13 @@ resolv-retry infinite
 nobind
 persist-key
 persist-tun
-comp-lzo
+remote-cert-tls server
+cipher AES-256-GCM
 verb 3
 
+<tls-crypt>
+{tls_crypt_key}
+</tls-crypt>
 <ca>
 {ca_cert}
 </ca>
