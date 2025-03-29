@@ -14,7 +14,7 @@ OPENVPN_CRL_DEST = "/etc/openvpn/crl.pem"
 
 
 def process_extend_username(message, bot):
-    """Проверяем, существует ли пользователь"""
+    """Проверяем, существует ли пользователь и продлеваем подписку"""
     username = message.text.strip()
 
     conn = get_db_connection()
@@ -44,35 +44,30 @@ def process_extend_username(message, bot):
     active_key_path = os.path.join(PRIVATE_KEYS_PATH, f"{username}.key")
 
     if os.path.exists(revoked_cert_path):
-        os.rename(revoked_cert_path, active_cert_path)
-
+        shutil.copy(revoked_cert_path, active_cert_path)
     if os.path.exists(revoked_key_path):
-        os.rename(revoked_key_path, active_key_path)
+        shutil.copy(revoked_key_path, active_key_path)
 
-    # Обновляем статус в index.txt
-    index_txt_path = os.path.join(EASYRSA_PATH, "pki", "index.txt")
-    with open(index_txt_path, "r") as f:
-        lines = f.readlines()
+    # Обновляем статус сертификата в базе EasyRSA
+    try:
+        # Используем update-db для изменения статуса с R (отозван) на V (валидный)
+        subprocess.run(
+            [os.path.join(EASYRSA_PATH, "easyrsa"), "update-db"],
+            cwd=EASYRSA_PATH,
+            check=True
+        )
 
-    # Ищем строку для нашего сертификата
-    for i, line in enumerate(lines):
-        if f"/CN={username}" in line and line.startswith("R"):
-            lines[i] = line.replace("R", "V")  # Меняем R на V для восстановления сертификата
-            break
+        # Генерируем новый CRL
+        bot.send_message(message.chat.id, "🔄 Обновляем CRL и перезапускаем OpenVPN...")
+        subprocess.run([os.path.join(EASYRSA_PATH, "easyrsa"), "gen-crl"],
+                       cwd=EASYRSA_PATH, check=True)
+        subprocess.run(["cp", CRL_PATH, OPENVPN_CRL_DEST], check=True)
+        subprocess.run(["systemctl", "restart", "openvpn"], check=True)
 
-    # Сохраняем изменения в index.txt
-    with open(index_txt_path, "w") as f:
-        f.writelines(lines)
-
-    bot.send_message(message.chat.id, "🔄 Обновляем CRL и перезапускаем OpenVPN...")
-
-    # Пересоздаём CRL и перезапускаем OpenVPN
-    subprocess.run([os.path.join(EASYRSA_PATH, "easyrsa"), "gen-crl"], cwd=EASYRSA_PATH, check=True)
-    subprocess.run(["cp", CRL_PATH, OPENVPN_CRL_DEST], check=True)
-    subprocess.run(["systemctl", "restart", "openvpn"], check=True)
-
-    bot.send_message(message.chat.id,
-                     f"✅ Подписка для {username} продлена до {new_expiration_date.strftime('%Y-%m-%d')}")
-
-    cursor.close()
-    conn.close()
+        bot.send_message(message.chat.id,
+                         f"✅ Подписка для {username} продлена до {new_expiration_date.strftime('%Y-%m-%d')}")
+    except subprocess.CalledProcessError as e:
+        bot.send_message(message.chat.id, f"❌ Ошибка при обновлении статуса сертификата: {e}")
+    finally:
+        cursor.close()
+        conn.close()
